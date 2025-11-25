@@ -19,7 +19,7 @@ public Plugin myinfo =
 	name = "[BotMiX] Lvl rank stats",
 	author = "Nek.'a 2x2 | vk.com/nekromio | t.me/sourcepwn ",
 	description = "Сбор статистики",
-	version = "1.0.0 101",
+	version = "1.0.0 102",
 	url = "ggwp.site | vk.com/nekromio | t.me/sourcepwn "
 };
 
@@ -229,6 +229,7 @@ public void ShowRankPlayer_Callback(Database db, DBResultSet rs, const char[] er
 
     int value, rank, kills, deaths, shoots, hits, headshots, assists;
     int roundWin, roundLose, playtime, hours;
+    int place = 0;
 
     if (found)
     {
@@ -248,23 +249,43 @@ public void ShowRankPlayer_Callback(Database db, DBResultSet rs, const char[] er
 
         hours = playtime / 3600;
         ReplaceString(name, sizeof(name), ",", " ");
+
+        char sTableName[64];
+        cvTableName.GetString(sTableName, sizeof(sTableName));
+
+        char qPlace[256];
+        FormatEx(qPlace, sizeof(qPlace),
+            "SELECT COUNT(*) FROM `%s` WHERE value > %d;",
+            sTableName, value);
+
+        SQL_LockDatabase(hDatabase);
+        DBResultSet r2 = SQL_Query(hDatabase, qPlace);
+        SQL_UnlockDatabase(hDatabase);
+
+        if (r2 != null && r2.FetchRow())
+        {
+            place = r2.FetchInt(0) + 1;
+            delete r2;
+        }
+        else
+        {
+            place = 0;
+        }
     }
     else
     {
-        // нет записи - но всё равно что-то шлём
         strcopy(steam, sizeof(steam), requestedSteam);
-        //strcopy(name, sizeof(name), "Неизвестно");
+        name[0] = '\0';
 
         value = rank = kills = deaths = shoots = hits = headshots = assists = 0;
         roundWin = roundLose = playtime = hours = 0;
-
-        //LogMessage("[LR] Top_OnePlayerCb: игрок не найден (chatName: %s, steam: %s)", chatName, requestedSteam);
+        place = 0;
     }
 
     KeyValues kv = new KeyValues("botmix_send_stats_player");
     kv.SetNum("chat_id",  chat_id);
-    kv.SetString("steam",     steam);
-    kv.SetString("name",      name);
+    kv.SetString("steam", steam);
+    kv.SetString("name",  name);
 
     kv.SetNum("value",        value);
     kv.SetNum("rank",         rank);
@@ -278,8 +299,7 @@ public void ShowRankPlayer_Callback(Database db, DBResultSet rs, const char[] er
     kv.SetNum("round_lose",   roundLose);
     kv.SetNum("playtime",     playtime);
     kv.SetNum("hours",        hours);
-
-    // спец-переменная для BotMix
+    kv.SetNum("place",        place);
     kv.SetNum("has_stats",    found ? 1 : 0);
 
     BotMix_TriggerEvent(BOTMIX_REQUEST_SEND_RANK_PLAYER, kv);
